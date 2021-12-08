@@ -6,14 +6,13 @@
  *
  */
 
-#include "ExecutionStateInterpreted.h"
-
 #include <AzCore/Asset/AssetManager.h>
 #include <AzCore/Script/ScriptContext.h>
 #include <AzCore/Script/ScriptSystemBus.h>
-
-#include "Execution/Interpreted/ExecutionStateInterpretedUtility.h"
-#include "Execution/RuntimeComponent.h"
+#include <Execution/Interpreted/ExecutionInterpretedAPI.h>
+#include <Execution/Interpreted/ExecutionStateInterpreted.h>
+#include <Execution/Interpreted/ExecutionStateInterpretedUtility.h>
+#include <Execution/RuntimeComponent.h>
 
 namespace ExecutionStateInterpretedCpp
 {
@@ -33,7 +32,25 @@ namespace ScriptCanvas
     ExecutionStateInterpreted::ExecutionStateInterpreted(const ExecutionStateConfig& config)
         : ExecutionState(config)
         , m_interpretedAsset(config.runtimeData.m_script)
-    {}
+    {
+        RuntimeAsset* runtimeAsset = config.asset.Get();
+
+#if defined(SCRIPT_CANVAS_RUNTIME_ASSET_CHECK)
+        if (!runtimeAsset)
+        {
+            AZ_Error("ScriptCanvas", false
+                , "ExecutionStateInterpreted created with ExecutionStateConfig that contained bad runtime asset data. %s"
+                , config.asset.GetId().ToString<AZStd::string>().data());
+            return;
+        }
+#else
+        AZ_Assert(false
+            , "ExecutionStateInterpreted created with ExecutionStateConfig that contained bad runtime asset data. %s"
+            , config.asset.GetId().ToString<AZStd::string>().data());
+#endif
+
+        Execution::InitializeInterpretedStatics(runtimeAsset->GetData());
+    }
 
     void ExecutionStateInterpreted::ClearLuaRegistryIndex()
     {
@@ -126,6 +143,8 @@ namespace ScriptCanvas
         AZ_Assert(m_luaRegistryIndex == LUA_NOREF, "ExecutionStateInterpreted already in the Lua registry and risks double deletion");
         // Lua: instance
         m_luaRegistryIndex = luaL_ref(m_luaState, LUA_REGISTRYINDEX);
+        AZ_Assert(m_luaRegistryIndex != LUA_REFNIL, "ExecutionStateInterpreted was nil when trying to gain a reference");
+        AZ_Assert(m_luaRegistryIndex != LUA_NOREF, "ExecutionStateInterpreted failed to gain a reference");
     }
 
     void ExecutionStateInterpreted::Reflect(AZ::ReflectContext* reflectContext)

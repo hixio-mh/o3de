@@ -14,10 +14,10 @@ import pathlib
 import sys
 import urllib.parse
 
-from o3de import manifest, validation
+from o3de import manifest, validation, utils
 
-logger = logging.getLogger()
-logging.basicConfig()
+logger = logging.getLogger('o3de.print_registration')
+logging.basicConfig(format=utils.LOG_FORMAT)
 
 
 def get_project_path(project_path: pathlib.Path, project_name: str) -> pathlib.Path:
@@ -326,7 +326,7 @@ def print_repos_data(repos_data: dict) -> int:
                 try:
                     repo_json_data = json.load(s)
                 except json.JSONDecodeError as e:
-                    logger.warn(f'{cache_file} failed to load: {str(e)}')
+                    logger.warning(f'{cache_file} failed to load: {str(e)}')
                 else:
                     print(f'{repo_uri}/repo.json cached as:')
                     print(cache_file)

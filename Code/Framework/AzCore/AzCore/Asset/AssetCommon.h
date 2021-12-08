@@ -19,7 +19,6 @@
 #include <AzCore/std/string/string.h>
 #include <AzCore/std/string/string_view.h>
 #include <AzCore/std/typetraits/is_base_of.h>
-#include <AzCore/Debug/AssetTracking.h>
 #include <AzCore/IO/Streamer/FileRequest.h>
 
 namespace AZ
@@ -325,13 +324,13 @@ namespace AZ
 
             T& operator*() const
             {
-                AZ_Assert(m_assetData, "Asset is not loaded");
+                AZ_Assert(m_assetData, "Asset %s (%s) is not loaded", m_assetId.ToString<AZStd::string>().c_str(), m_assetHint.c_str());
                 return *Get();
             }
 
             T* operator->() const
             {
-                AZ_Assert(m_assetData, "Asset is not loaded");
+                AZ_Assert(m_assetData, "Asset %s (%s) is not loaded", m_assetId.ToString<AZStd::string>().c_str(), m_assetHint.c_str());
                 return Get();
             }
 
@@ -556,16 +555,24 @@ namespace AZ
                     Asset<AssetData> assetData(AssetInternal::GetAssetData(actualId, AZ::Data::AssetLoadBehavior::Default));
                     if (assetData)
                     {
-                        auto curStatus = assetData->GetStatus();
+                        auto isReady = assetData->GetStatus() == AssetData::AssetStatus::Ready;
                         bool isError = assetData->IsError();
-                        connectLock.unlock();
-                        if (curStatus == AssetData::AssetStatus::Ready)
+
+                        if (isReady || isError)
                         {
-                            handler->OnAssetReady(assetData);
-                        }
-                        else if (isError)
-                        {
-                            handler->OnAssetError(assetData);
+                            connectLock.unlock();
+
+                            if (isReady)
+                            {
+                                handler->OnAssetReady(assetData);
+                            }
+                            else if (isError)
+                            {
+                                handler->OnAssetError(assetData);
+                            }
+
+                            // Lock the mutex again since some destructors will be modifying the context afterwards
+                            connectLock.lock();
                         }
                     }
                 }
@@ -573,7 +580,6 @@ namespace AZ
             template<typename Bus>
             using ConnectionPolicy = AssetConnectionPolicy<Bus>;
 
-            using EventProcessingPolicy = Debug::AssetTrackingEventProcessingPolicy<>;
             //////////////////////////////////////////////////////////////////////////
 
             virtual ~AssetEvents() {}
